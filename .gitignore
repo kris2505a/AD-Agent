@@ -1,3 +1,5 @@
-compile_commands.json
-build/
-
+Binaries/
+Intermediate/
+**.vcxproj
+**.user
+**.slnx
