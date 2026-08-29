@@ -1,6 +1,6 @@
 #include <Test.h>
 
-int main() {
+auto main() -> int {
 	Test test;
 	test.testStuff();
 }

@@ -1,5 +1,8 @@
 Binaries/
 Intermediate/
-**.vcxproj
-**.user
-**.slnx
+
+.cache/
+.vs/
+out/
+
+compile_commands.json
