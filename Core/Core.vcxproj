@@ -11,6 +11,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\private\com_string.h" />
+    <ClInclude Include="src\private\com_variant.h" />
     <ClInclude Include="src\private\types.h" />
     <ClInclude Include="src\private\win_directory_service.h" />
     <ClInclude Include="src\public\thread_context.h" />
@@ -21,6 +23,7 @@
     <ClInclude Include="src\public\user_service.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\private\com_string.cpp" />
     <ClCompile Include="src\private\thread_context.cpp" />
     <ClCompile Include="src\private\win_directory_service.cpp" />
     <ClCompile Include="src\private\win_user_service.cpp" />

@@ -6,3 +6,12 @@ struct UserInfo {
 	std::string displayName;
 	std::string mail;
 };
+
+struct UserCreateInfo {
+	std::string userName;
+	std::string firstName;
+	std::string lastName;
+	std::string initials;
+	std::string mail;
+	std::string password;
+};

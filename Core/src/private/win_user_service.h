@@ -2,6 +2,8 @@
 #include "public/user_service.h"
 #include "win_directory_service.h"
 #include <unordered_map>
+#include "com_variant.h"
+
 
 class WinUserService : public IUserService {
 public:
@@ -9,7 +11,7 @@ public:
 	~WinUserService() override;
 
 	auto getUsers() -> std::vector<UserInfo> override;
-	auto createUser(UserInfo info) -> std::expected <UserInfo, UserErrors> override;
+	auto createUser(UserCreateInfo) -> std::expected<UserInfo, UserError> override;
 
 
 
@@ -20,12 +22,14 @@ private:
 		Mail,
 		SID,
 		GUID,
-		LastLogin
 	};
 
-	
+	auto putUserData(IADsUser*, UserAttribute, const ComVariant&) -> bool;
+	auto putUserData(IADsUser*, SearchAttribute, const ComVariant&) -> bool;
+
 private:
 	WinDirectoryService& pDirectoryService;
 	Microsoft::WRL::ComPtr<IDirectorySearch> mDirectorySearch;
 	std::unordered_map<SearchAttribute, std::wstring> mSearchAttributes;
+	std::unordered_map<UserAttribute, std::wstring> mUserAttributes;
 };

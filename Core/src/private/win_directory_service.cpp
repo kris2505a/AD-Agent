@@ -46,3 +46,24 @@ auto WinDirectoryService::getQueryInterface() -> Microsoft::WRL::ComPtr<IDirecto
 
 	return directorySearch;
 }
+
+auto WinDirectoryService::createUser(const ComString& relativeName) 
+	-> std::expected<Microsoft::WRL::ComPtr<IDispatch>, std::string> {
+
+	Microsoft::WRL::ComPtr<IDispatch> rawUser;
+	HRESULT hr = mADService->Create(
+		ComString{ L"user" }.get(),
+		relativeName.get(),
+		rawUser.GetAddressOf()
+	);
+
+	if (FAILED(hr)) {
+		return std::unexpected{ std::format("Failed to create raw user! {}", getMessage(hr))};
+	}
+	
+	return rawUser;
+}
+
+auto WinDirectoryService::getRawService() const -> IADsContainer* {
+	return mADService.Get();
+}

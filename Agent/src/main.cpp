@@ -17,23 +17,24 @@ auto main(int argc, char** argv) -> int {
 	std::string_view connStr = argv[1];
 	auto adService = IDirectoryService::create(connStr);
 	auto userService = IUserService::create(*adService);
+
+	auto user = userService->createUser({
+		.userName = "valukkathala",
+		.firstName = "Valukka",
+		.lastName = "Thala",
+		.initials = "X",
+		.mail = "valukkathala69@dafaq.isdis",
+		.password = "SmoothValukka@67"
+	});
+
+	if (!user) {
+		Log::error("Failed to create user!");
+	}
 	
-	std::vector<UserInfo> users;
-
-	try {
-		users = userService->getUsers();
-		for (auto& user : users) {
-			Log::debug("UserName: {}", user.userName);
-			Log::debug("\tDisplayName: {}", user.displayName);
-			Log::debug("\tMail: {}\n", user.mail);
-
-		}
-	}
-
-	catch (std::exception& e) {
-		Log::error("{}", e.what());
-	}
+	Log::info("UserName: {}", user->userName);
+	Log::info("DisplayName: {}", user->displayName);
+	Log::info("Mail: {}", user->mail);
+	
 
 	ThreadContext::shutDown();
-
 }
