@@ -52,7 +52,7 @@ auto WinDirectoryService::createUser(const ComString& relativeName)
 
 	Microsoft::WRL::ComPtr<IDispatch> rawUser;
 	HRESULT hr = mADService->Create(
-		ComString{ L"user" }.get(),
+		ComString{ L"User" }.get(),
 		relativeName.get(),
 		rawUser.GetAddressOf()
 	);

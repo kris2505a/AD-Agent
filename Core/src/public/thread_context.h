@@ -1,8 +1,8 @@
 #pragma once
 #include "core.h"
 
-class ThreadContext {
+class AGENT_API ThreadContext {
 public:
-	AGENT_API inline static auto init() -> void;
-	AGENT_API inline static auto shutDown() -> void;
+	ThreadContext();
+	~ThreadContext();
 };

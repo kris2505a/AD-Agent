@@ -16,11 +16,12 @@ WinUserService::WinUserService(WinDirectoryService& ds)
 	mDirectorySearch = pDirectoryService.getQueryInterface();
 	
 	mSearchAttributes = {
-		{ SearchAttribute::UserName,	L"sAMAccountName" },
-		{ SearchAttribute::DisplayName, L"displayName" },
-		{ SearchAttribute::Mail,		L"mail" },
-		{ SearchAttribute::SID,			L"objectSid" },
-		{ SearchAttribute::GUID,		L"objectGUID" }
+		{ SearchAttribute::UserName,			L"sAMAccountName" },
+		{ SearchAttribute::DisplayName,			L"displayName" },
+		{ SearchAttribute::Mail,				L"mail" },
+		{ SearchAttribute::SID,					L"objectSid" },
+		{ SearchAttribute::GUID,				L"objectGUID" },
+		{ SearchAttribute::UserPrincipalName,	L"userPrincipalName" }
 	};
 
 	mUserAttributes = {
@@ -59,7 +60,7 @@ auto WinUserService::getUsers() -> std::vector <UserInfo> {
 
 	ADS_SEARCH_HANDLE handle{};
 
-	//Log::info("Executing search!");
+	Log::info("Executing search!");
 
 	auto hr = mDirectorySearch->ExecuteSearch(
 		const_cast<LPWSTR>(filter.c_str()),
@@ -75,17 +76,13 @@ auto WinUserService::getUsers() -> std::vector <UserInfo> {
 
 	std::vector <UserInfo> users;
 
-	//Log::info("Retrieving data from search handle");
+	Log::info("Retrieving data from search handle");
 
 	HRESULT status;
 
 	while (S_OK == (status = mDirectorySearch->GetNextRow(handle))) {
 		
-		if (status == S_ADS_NOMORE_ROWS) {
-			break;
-		}
-
-		//Log::info("Row retrieved.");
+		Log::info("Row retrieved.");
 
 		UserInfo info;
 
@@ -102,22 +99,22 @@ auto WinUserService::getUsers() -> std::vector <UserInfo> {
 				continue;
 			}
 
-			//Log::info("Column retrieved at attrib: {}", toNarrow(mSearchAttributes.at(attrib)));
+			Log::info("Column retrieved at attrib: {}", toNarrow(mSearchAttributes.at(attrib)));
 
 			switch (attrib) {
 			case SearchAttribute::UserName:
 				info.userName = toNarrow(column.pADsValues[0].CaseIgnoreString);
-				//Log::info("UserName: {}", info.userName);
+				Log::info("UserName: {}", info.userName);
 				break;
 
 			case SearchAttribute::DisplayName:
 				info.displayName = toNarrow(column.pADsValues[0].CaseIgnoreString);
-				//Log::info("DisplayName: {}", info.displayName);
+				Log::info("DisplayName: {}", info.displayName);
 				break;
 
 			case SearchAttribute::Mail:
 				info.mail = toNarrow(column.pADsValues[0].CaseIgnoreString);
-				//Log::info("Mail: {}", info.mail);
+				Log::info("Mail: {}", info.mail);
 				break;
 			}
 
@@ -126,7 +123,7 @@ auto WinUserService::getUsers() -> std::vector <UserInfo> {
 				Log::error("Failed to free column!");
 			}
 
-			//Log::info("Free column returned {}", getMessage(hr));
+			Log::info("Free column returned {}", getMessage(hr));
 		}
 		users.push_back(info);
 	}
@@ -138,7 +135,7 @@ auto WinUserService::getUsers() -> std::vector <UserInfo> {
 		throw std::runtime_error("Failed to release resource.");
 	}
 
-	//Log::info("Closing handle returned: {}", getMessage(hr));
+	Log::info("Closing handle returned: {}", getMessage(hr));
 
 	return users;
 }
@@ -146,7 +143,7 @@ auto WinUserService::getUsers() -> std::vector <UserInfo> {
 
 auto WinUserService::createUser(UserCreateInfo info) -> std::expected<UserInfo, UserError> {
 
-	ComString relativeName (L"CN=" + toWide(info.firstName) + L" " + toWide(info.lastName));
+	ComString relativeName (L"CN=" + toWide(info.firstName) + L" " + toWide(info.lastName) + L",CN=Users");
 
 	auto rawUser = pDirectoryService.createUser(relativeName);
 
@@ -190,6 +187,10 @@ auto WinUserService::createUser(UserCreateInfo info) -> std::expected<UserInfo, 
 		return std::unexpected{ UserError::FailedToSetAttribute };
 	}
 
+	if (!putUserData(user.Get(), SearchAttribute::UserPrincipalName, ComVariant{ ComString{toWide(info.userName) + L"@dafaq.isdis"} })) {
+		return std::unexpected{ UserError::FailedToSetAttribute };
+	}
+
 	hr = user->SetInfo();
 
 	if (FAILED(hr)) {
@@ -218,6 +219,22 @@ auto WinUserService::createUser(UserCreateInfo info) -> std::expected<UserInfo, 
 		return std::unexpected{ UserError::FailedToSetPassword };
 	}
 
+	hr = user->put_AccountDisabled(VARIANT_FALSE);
+
+	if (FAILED(hr)) {
+		Log::error("Failed to enable account: {}", getMessage(hr));
+		return std::unexpected{ UserError::FailedToEnableUser };
+	}
+
+	user->SetInfo();
+
+	if (FAILED(hr)) {
+		Log::error(
+			"Failed to set attributes: {}",
+			getMessage(hr)
+		);
+		return std::unexpected{ UserError::FailedToSetAttribute };
+	}
 
 	return UserInfo{
 		.userName = info.userName,
@@ -225,6 +242,98 @@ auto WinUserService::createUser(UserCreateInfo info) -> std::expected<UserInfo, 
 		.mail = info.mail
 	};
 
+}
+
+auto WinUserService::getUser(std::string_view userName) -> std::expected<UserInfo, UserError> {
+	std::vector<SearchAttribute> searchAttributes{
+	SearchAttribute::UserName,
+	SearchAttribute::DisplayName,
+	SearchAttribute::Mail
+	};
+
+	std::vector<LPWSTR> rawAttributes;
+
+	for (auto attrib : searchAttributes) {
+		rawAttributes.push_back(const_cast<LPWSTR>(mSearchAttributes.at(attrib).c_str()));
+	}
+
+	std::wstring filter =
+		L"(&"
+		L"(objectCategory=person)"
+		L"(objectClass=user)"
+		L"((sAMAccountName=" + toWide(userName) + L"))"
+		L")";
+
+	ADS_SEARCH_HANDLE handle = {};
+
+	Log::info("Executing search!");
+	HRESULT hr;
+
+	hr = mDirectorySearch->ExecuteSearch(
+		filter.data(),
+		rawAttributes.data(),
+		static_cast<DWORD>(rawAttributes.size()),
+		&handle
+	);
+
+	if (FAILED(hr)) {
+		Log::error("Failed to retrive users: {}", getMessage(hr));
+		return std::unexpected{ UserError::UnknownError };
+	}
+
+	hr = mDirectorySearch->GetFirstRow(handle);
+	if (S_ADS_NOMORE_ROWS == hr) {
+		Log::error("Failed to retrive user: {}", getMessage(hr));
+		return std::unexpected{ UserError::NotFound };
+	}
+
+	if (FAILED(hr)) {
+		Log::error("Failed to retrive users: {}", getMessage(hr));
+		return std::unexpected{ UserError::UnknownError };
+	}
+	
+	UserInfo info;
+
+	for (auto& attrib : searchAttributes) {
+		ADS_SEARCH_COLUMN column{};
+		hr = mDirectorySearch->GetColumn(handle, const_cast<LPWSTR>(mSearchAttributes.at(attrib).c_str()), &column);
+
+		if (FAILED(hr)) {
+			continue;
+		}
+
+		if (0 == column.dwNumValues) {
+			mDirectorySearch->FreeColumn(&column);
+			continue;
+		}
+
+		Log::info("Column retrieved at attrib: {}", toNarrow(mSearchAttributes.at(attrib)));
+
+		switch (attrib) {
+		case SearchAttribute::UserName:
+			info.userName = toNarrow(column.pADsValues[0].CaseIgnoreString);
+			Log::info("UserName: {}", info.userName);
+			break;
+
+		case SearchAttribute::DisplayName:
+			info.displayName = toNarrow(column.pADsValues[0].CaseIgnoreString);
+			Log::info("DisplayName: {}", info.displayName);
+			break;
+
+		case SearchAttribute::Mail:
+			info.mail = toNarrow(column.pADsValues[0].CaseIgnoreString);
+			Log::info("Mail: {}", info.mail);
+			break;
+		}
+
+		hr = mDirectorySearch->FreeColumn(&column);
+		if (FAILED(hr)) {
+			Log::error("Failed to free column!");
+		}
+
+		Log::info("Free column returned {}", getMessage(hr));
+	}
+	return info;
 }
 
 auto WinUserService::putUserData(IADsUser* user, UserAttribute attribute, const ComVariant& variant) -> bool {

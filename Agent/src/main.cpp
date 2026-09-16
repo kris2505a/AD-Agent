@@ -2,13 +2,12 @@
 #include <user_service.h>
 #include <log.h>
 #include <thread_context.h>
-#include <thread_context.h>
 
 #include <iostream>
 
 auto main(int argc, char** argv) -> int {
 
-	ThreadContext::init();
+	ThreadContext context;
 
 	if (argc < 2) {
 		Log::error("no args found!");
@@ -24,17 +23,20 @@ auto main(int argc, char** argv) -> int {
 		.lastName = "Thala",
 		.initials = "X",
 		.mail = "valukkathala69@dafaq.isdis",
-		.password = "SmoothValukka@67"
+		.password = "Krishna@2505@2505"
 	});
 
 	if (!user) {
 		Log::error("Failed to create user!");
 	}
 	
-	Log::info("UserName: {}", user->userName);
-	Log::info("DisplayName: {}", user->displayName);
-	Log::info("Mail: {}", user->mail);
+	Log::debug("UserName: {}", user->userName);
+	Log::debug("DisplayName: {}", user->displayName);
+	Log::debug("Mail: {}", user->mail);
 	
 
-	ThreadContext::shutDown();
+	Log::debug("----------------------------------------------------");
+	Log::debug("Finding user: valukkathala");
+	userService->getUser("valukkathala");
+
 }

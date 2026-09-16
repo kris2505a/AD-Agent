@@ -3,7 +3,7 @@
 #include "public/log.h"
 
 
-auto ThreadContext::init() -> void {
+ThreadContext::ThreadContext() {
 	HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 	if (FAILED(hr)) {
 		Log::error("Failed to init com object for the thread");
@@ -12,7 +12,7 @@ auto ThreadContext::init() -> void {
 }
 
 
-auto ThreadContext::shutDown() -> void {
+ThreadContext::~ThreadContext() {
 	CoUninitialize();
 }
 
