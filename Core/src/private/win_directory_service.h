@@ -13,7 +13,7 @@ public:
 
 
 	auto getQueryInterface() -> Microsoft::WRL::ComPtr<IDirectorySearch>;
-	auto createUser(const ComString&) -> std::expected<Microsoft::WRL::ComPtr<IDispatch>, std::string>;
+	auto createObject(const ComString&, const ComString&) -> std::expected<Microsoft::WRL::ComPtr<IDispatch>, std::string>;
 	auto getRawService() const -> IADsContainer*;
 
 private:

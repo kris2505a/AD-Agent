@@ -141,11 +141,11 @@ auto WinUserService::getUsers() -> std::vector <UserInfo> {
 }
 
 
-auto WinUserService::createUser(UserCreateInfo info) -> std::expected<UserInfo, UserError> {
+auto WinUserService::createUser(UserWriteInfo info) -> std::expected<UserInfo, UserError> {
 
 	ComString relativeName (L"CN=" + toWide(info.firstName) + L" " + toWide(info.lastName) + L",CN=Users");
 
-	auto rawUser = pDirectoryService.createUser(relativeName);
+	auto rawUser = pDirectoryService.createObject(ComString{ L"User" }, relativeName);
 
 	if (!rawUser) {
 		Log::error("{}", rawUser.error());

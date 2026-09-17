@@ -11,9 +11,9 @@ public:
 	~WinUserService() override;
 
 	auto getUsers() -> std::vector<UserInfo> override;
-	auto createUser(UserCreateInfo) -> std::expected<UserInfo, UserError> override;
+	auto createUser(UserWriteInfo) -> std::expected<UserInfo, UserError> override;
 	auto getUser(std::string_view userName) -> std::expected<UserInfo, UserError> override;
-
+	
 
 private:
 	enum class SearchAttribute {

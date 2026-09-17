@@ -31,8 +31,9 @@ public:
 	IUserService() = default;
 	virtual ~IUserService() = default;
 	virtual auto getUsers() -> std::vector<UserInfo> = 0;
-	virtual auto createUser(UserCreateInfo info) -> std::expected<UserInfo, UserError> = 0;
-	virtual auto getUser(std::string_view userName) -> std::expected<UserInfo, UserError> = 0;
+	virtual auto createUser(UserWriteInfo) -> std::expected<UserInfo, UserError> = 0;
+	virtual auto getUser(std::string_view) -> std::expected<UserInfo, UserError> = 0;
+	virtual auto modifyUser(std::string_view, UserWriteInfo) -> std::expected<UserInfo, UserError> = 0;
 
 
 	static auto create(IDirectoryService& ds) -> std::unique_ptr<IUserService>;

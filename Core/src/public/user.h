@@ -7,7 +7,7 @@ struct UserInfo {
 	std::string mail;
 };
 
-struct UserCreateInfo {
+struct UserWriteInfo {
 	std::string userName;
 	std::string firstName;
 	std::string lastName;
