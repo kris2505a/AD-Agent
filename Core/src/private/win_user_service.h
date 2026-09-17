@@ -13,7 +13,11 @@ public:
 	auto getUsers() -> std::vector<UserInfo> override;
 	auto createUser(UserWriteInfo) -> std::expected<UserInfo, UserError> override;
 	auto getUser(std::string_view userName) -> std::expected<UserInfo, UserError> override;
-	
+	auto modifyUser(UserWriteInfo) -> std::expected<UserInfo, UserError> override;
+	auto deleteUser(std::string_view) -> std::expected<void, UserError> override;
+
+private:
+	auto setUserAttributes(IADsUser*, UserWriteInfo&) -> std::expected<UserInfo, UserError>;
 
 private:
 	enum class SearchAttribute {

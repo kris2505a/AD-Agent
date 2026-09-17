@@ -65,7 +65,7 @@ auto WinUserService::getUsers() -> std::vector <UserInfo> {
 	auto hr = mDirectorySearch->ExecuteSearch(
 		const_cast<LPWSTR>(filter.c_str()),
 		rawAttributes.data(),
-		rawAttributes.size(),
+		static_cast<DWORD>(rawAttributes.size()),
 		&handle
 	);
 
@@ -143,7 +143,7 @@ auto WinUserService::getUsers() -> std::vector <UserInfo> {
 
 auto WinUserService::createUser(UserWriteInfo info) -> std::expected<UserInfo, UserError> {
 
-	ComString relativeName (L"CN=" + toWide(info.firstName) + L" " + toWide(info.lastName) + L",CN=Users");
+	ComString relativeName (L"CN=" + toWide(info.userName) + L",CN=Users");
 
 	auto rawUser = pDirectoryService.createObject(ComString{ L"User" }, relativeName);
 
@@ -163,42 +163,10 @@ auto WinUserService::createUser(UserWriteInfo info) -> std::expected<UserInfo, U
 		return std::unexpected{ UserError::OtherErrors };
 	}
 
-	if (!putUserData(user.Get(), SearchAttribute::UserName, ComVariant{ ComString{ toWide(info.userName) } })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
-	}
+	auto res = setUserAttributes(user.Get(), info);
 
-	if (!putUserData(user.Get(), SearchAttribute::DisplayName, ComVariant{ ComString{ toWide(info.firstName) + L" " + toWide(info.lastName)}})) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
-	}
-
-	if (!putUserData(user.Get(), SearchAttribute::Mail, ComVariant{ ComString{ toWide(info.mail) } })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
-	}
-
-	if (!putUserData(user.Get(), UserAttribute::FirstName, ComVariant{ ComString{ toWide(info.firstName) } })) {
-		return std::unexpected {UserError::FailedToSetAttribute};
-	}
-
-	if (!putUserData(user.Get(), UserAttribute::LastName, ComVariant{ ComString{ toWide(info.lastName) } })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
-	}
-
-	if (!putUserData(user.Get(), UserAttribute::Initial, ComVariant{ ComString{ toWide(info.initials) } })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
-	}
-
-	if (!putUserData(user.Get(), SearchAttribute::UserPrincipalName, ComVariant{ ComString{toWide(info.userName) + L"@dafaq.isdis"} })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
-	}
-
-	hr = user->SetInfo();
-
-	if (FAILED(hr)) {
-		Log::error(
-			"Failed to set attributes: {}",
-			getMessage(hr)
-		);
-		return std::unexpected{ UserError::FailedToSetAttribute };
+	if (!res) {
+		return res;
 	}
 
 	ComString password{ toWide(info.password) };
@@ -226,7 +194,7 @@ auto WinUserService::createUser(UserWriteInfo info) -> std::expected<UserInfo, U
 		return std::unexpected{ UserError::FailedToEnableUser };
 	}
 
-	user->SetInfo();
+	hr = user->SetInfo();
 
 	if (FAILED(hr)) {
 		Log::error(
@@ -235,12 +203,7 @@ auto WinUserService::createUser(UserWriteInfo info) -> std::expected<UserInfo, U
 		);
 		return std::unexpected{ UserError::FailedToSetAttribute };
 	}
-
-	return UserInfo{
-		.userName = info.userName,
-		.displayName = info.firstName + " " + info.lastName,
-		.mail = info.mail
-	};
+	return res;
 
 }
 
@@ -284,11 +247,13 @@ auto WinUserService::getUser(std::string_view userName) -> std::expected<UserInf
 	hr = mDirectorySearch->GetFirstRow(handle);
 	if (S_ADS_NOMORE_ROWS == hr) {
 		Log::error("Failed to retrive user: {}", getMessage(hr));
+		mDirectorySearch->CloseSearchHandle(handle);
 		return std::unexpected{ UserError::NotFound };
 	}
 
 	if (FAILED(hr)) {
 		Log::error("Failed to retrive users: {}", getMessage(hr));
+		mDirectorySearch->CloseSearchHandle(handle);
 		return std::unexpected{ UserError::UnknownError };
 	}
 	
@@ -333,7 +298,103 @@ auto WinUserService::getUser(std::string_view userName) -> std::expected<UserInf
 
 		Log::info("Free column returned {}", getMessage(hr));
 	}
+	mDirectorySearch->CloseSearchHandle(handle);
 	return info;
+}
+
+auto WinUserService::modifyUser(UserWriteInfo info) -> std::expected<UserInfo, UserError> {
+	
+	auto rawUser = pDirectoryService.getObject(ComString{ L"User" }, ComString{ L"CN=" + toWide(info.userName) + L",CN=Users"});
+	if (!rawUser) {
+		Log::error("{}", rawUser.error());
+		return std::unexpected{ UserError::FailedToRetrieveUserObject };
+	}
+	Log::info("raw user retrieved successfully");
+
+	Microsoft::WRL::ComPtr<IADsUser> user;
+
+	HRESULT hr = rawUser->As(&user);
+
+	if (FAILED(hr)) {
+		Log::error("Failed to COM cast IDispatch into IADsUser: {}", getMessage(hr));
+		return std::unexpected{ UserError::OtherErrors };
+	}
+
+	auto result = setUserAttributes(user.Get(), info);
+
+	return result;
+}
+
+auto WinUserService::deleteUser(std::string_view userName) -> std::expected<void, UserError> {
+	auto result = pDirectoryService.deleteObject(ComString{ L"User" }, ComString{ L"CN=" + toWide(userName) + L",CN=Users" });
+
+	if (!result) {
+		Log::error("Failed to delete user: {}", result.error());
+		return std::unexpected{ UserError::UnknownError };
+	}
+
+	Log::info("Successfully deleted user: {}", userName);
+	return {};
+}
+
+auto WinUserService::setUserAttributes(IADsUser* user, UserWriteInfo& info)
+	-> std::expected<UserInfo, UserError> {
+	Log::info("Setting sAMAccountName: {}", info.userName);
+
+	if (!user) {
+		Log::error("User passed is nullptr");
+		return std::unexpected{ UserError::UnknownError };
+	}
+
+	if (!putUserData(user, SearchAttribute::UserName, ComVariant{ ComString{ toWide(info.userName) } })) {
+		return std::unexpected{ UserError::FailedToSetAttribute };
+	}
+
+	Log::info("Setting displayName: {} {}", info.firstName, info.lastName);
+	if (!putUserData(user, SearchAttribute::DisplayName, ComVariant{ ComString{ toWide(info.firstName) + L" " + toWide(info.lastName)} })) {
+		return std::unexpected{ UserError::FailedToSetAttribute };
+	}
+
+	Log::info("Setting mail: {}", info.mail);
+	if (!putUserData(user, SearchAttribute::Mail, ComVariant{ ComString{ toWide(info.mail) } })) {
+		return std::unexpected{ UserError::FailedToSetAttribute };
+	}
+
+	Log::info("Setting firstName: {}", info.firstName);
+	if (!putUserData(user, UserAttribute::FirstName, ComVariant{ ComString{ toWide(info.firstName) } })) {
+		return std::unexpected{ UserError::FailedToSetAttribute };
+	}
+
+	Log::info("Setting sn (lastName): {}", info.lastName);
+	if (!putUserData(user, UserAttribute::LastName, ComVariant{ ComString{ toWide(info.lastName) } })) {
+		return std::unexpected{ UserError::FailedToSetAttribute };
+	}
+
+	Log::info("Setting initials: {}", info.initials);
+	if (!putUserData(user, UserAttribute::Initial, ComVariant{ ComString{ toWide(info.initials) } })) {
+		return std::unexpected{ UserError::FailedToSetAttribute };
+	}
+
+	Log::info("Setting userPrincipalName (i wont display it. fuck off dude)");
+	if (!putUserData(user, SearchAttribute::UserPrincipalName, ComVariant{ ComString{toWide(info.userName) + L"@dafaq.isdis"} })) {
+		return std::unexpected{ UserError::FailedToSetAttribute };
+	}
+
+	HRESULT hr = user->SetInfo();
+
+	if (FAILED(hr)) {
+		Log::error(
+			"Failed to set attributes: {}",
+			getMessage(hr)
+		);
+		return std::unexpected{ UserError::FailedToSetAttribute };
+	}
+
+	return UserInfo{
+		.userName = info.userName,
+		.displayName = info.firstName + " " + info.lastName,
+		.mail = info.mail
+	};
 }
 
 auto WinUserService::putUserData(IADsUser* user, UserAttribute attribute, const ComVariant& variant) -> bool {

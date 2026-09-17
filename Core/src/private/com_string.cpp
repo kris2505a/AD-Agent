@@ -1,4 +1,5 @@
 #include "com_string.h"
+#include "types.h"
 
 ComString::ComString(std::wstring_view value) {
 	mRawCOMString = SysAllocStringLen(value.data(), static_cast<UINT>(value.size()));
@@ -45,5 +46,9 @@ ComString& ComString::operator=(ComString&& other) noexcept {
 
 auto ComString::get() const -> BSTR {
 	return mRawCOMString;
+}
+
+auto ComString::getStr() const -> std::string {
+	return toNarrow(mRawCOMString);
 }
 

@@ -14,6 +14,9 @@ public:
 
 	auto getQueryInterface() -> Microsoft::WRL::ComPtr<IDirectorySearch>;
 	auto createObject(const ComString&, const ComString&) -> std::expected<Microsoft::WRL::ComPtr<IDispatch>, std::string>;
+	auto getObject(const ComString&, const ComString&) -> std::expected <Microsoft::WRL::ComPtr<IDispatch>, std::string>;
+	auto deleteObject(const ComString&, const ComString&) -> std::expected <void, std::string>;
+
 	auto getRawService() const -> IADsContainer*;
 
 private:

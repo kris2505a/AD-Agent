@@ -18,6 +18,7 @@ public:
 		PasswordPolicy,
 		PermissionDenied,
 		FailedToEnableUser,
+		FailedToRetrieveUserObject,
 		UnknownError
 	};
 
@@ -33,7 +34,8 @@ public:
 	virtual auto getUsers() -> std::vector<UserInfo> = 0;
 	virtual auto createUser(UserWriteInfo) -> std::expected<UserInfo, UserError> = 0;
 	virtual auto getUser(std::string_view) -> std::expected<UserInfo, UserError> = 0;
-	virtual auto modifyUser(std::string_view, UserWriteInfo) -> std::expected<UserInfo, UserError> = 0;
+	virtual auto modifyUser(UserWriteInfo) -> std::expected<UserInfo, UserError> = 0;
+	virtual auto deleteUser(std::string_view) -> std::expected<void, UserError> = 0;
 
 
 	static auto create(IDirectoryService& ds) -> std::unique_ptr<IUserService>;

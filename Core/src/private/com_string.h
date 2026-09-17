@@ -15,6 +15,7 @@ public:
 	ComString& operator=(ComString&& other) noexcept;
 
 	auto get() const -> BSTR;
+	auto getStr() const -> std::string;
 
 private:
 	BSTR mRawCOMString{};

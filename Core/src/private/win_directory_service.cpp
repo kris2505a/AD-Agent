@@ -50,18 +50,48 @@ auto WinDirectoryService::getQueryInterface() -> Microsoft::WRL::ComPtr<IDirecto
 auto WinDirectoryService::createObject(const ComString& className, const ComString& relativeName) 
 	-> std::expected<Microsoft::WRL::ComPtr<IDispatch>, std::string> {
 
-	Microsoft::WRL::ComPtr<IDispatch> rawUser;
+	Microsoft::WRL::ComPtr<IDispatch> rawObject;
 	HRESULT hr = mADService->Create(
 		className.get(),
 		relativeName.get(),
-		rawUser.GetAddressOf()
+		rawObject.GetAddressOf()
 	);
 
 	if (FAILED(hr)) {
-		return std::unexpected{ std::format("Failed to create raw user! {}", getMessage(hr))};
+		return std::unexpected{ std::format("Failed to create raw object of class {} : {}", className.getStr(), getMessage(hr))};
 	}
 	
-	return rawUser;
+	return rawObject;
+}
+
+auto WinDirectoryService::getObject(const ComString& className, const ComString& relativeName) 
+	-> std::expected<Microsoft::WRL::ComPtr<IDispatch>, std::string> {
+	
+	Microsoft::WRL::ComPtr<IDispatch> rawObject;
+	HRESULT hr = mADService->GetObjectW(
+		className.get(),
+		relativeName.get(),
+		rawObject.GetAddressOf()
+	);
+
+	if (FAILED(hr)) {
+		return std::unexpected{ std::format("Failed to retrieve raw object of class {} : {} ", className.getStr(), getMessage(hr)) };
+	}
+
+	return rawObject;
+}
+
+auto WinDirectoryService::deleteObject(const ComString& className, const ComString& relativeName) -> std::expected<void, std::string> {
+	HRESULT hr = mADService->Delete(
+		className.get(),
+		relativeName.get()
+	);
+
+	if (FAILED(hr)) {
+		return std::unexpected{ getMessage(hr) };
+	}
+
+	return {};
 }
 
 auto WinDirectoryService::getRawService() const -> IADsContainer* {

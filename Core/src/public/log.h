@@ -10,25 +10,25 @@ public:
 	template <typename... Args>
 	inline static auto warn(std::string_view msg, Args... args) -> void {
 		const auto logWithArgs = std::vformat(msg, std::make_format_args(args...));
-		logMessage("warn", logWithArgs);
+		logMessage("wrn", logWithArgs);
 	}
 
 	template <typename... Args>
 	inline static auto error(std::string_view msg, Args... args) -> void {
 		const auto logWithArgs = std::vformat(msg, std::make_format_args(args...));
-		logMessage("err ", logWithArgs);
+		logMessage("err", logWithArgs);
 	}
 
 	template <typename... Args>
 	inline static auto debug(std::string_view msg, Args... args) -> void {
 		const auto logWithArgs = std::vformat(msg, std::make_format_args(args...));
-		logMessage("deb ", logWithArgs);
+		logMessage("deb", logWithArgs);
 	}
 
 	template <typename... Args>
 	inline static auto info(std::string_view msg, Args... args) -> void {
 		const auto logWithArgs = std::vformat(msg, std::make_format_args(args...));
-		logMessage("info", logWithArgs);
+		logMessage("inf", logWithArgs);
 	}
 
 private:

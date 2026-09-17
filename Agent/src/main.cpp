@@ -9,34 +9,55 @@ auto main(int argc, char** argv) -> int {
 
 	ThreadContext context;
 
+	/*
 	if (argc < 2) {
 		Log::error("no args found!");
 		return -1;
 	}
 	std::string_view connStr = argv[1];
+	
 	auto adService = IDirectoryService::create(connStr);
+	*/
+	auto adService = IDirectoryService::create("LDAP://DC=dafaq,DC=isdis");
 	auto userService = IUserService::create(*adService);
 
-	auto user = userService->createUser({
+	UserWriteInfo valukkaWriteInfo{
 		.userName = "valukkathala",
-		.firstName = "Valukka",
+		.firstName = "Valukka Manda",
 		.lastName = "Thala",
 		.initials = "X",
-		.mail = "valukkathala69@dafaq.isdis",
+		.mail = "valukkamanda69@dafaq.isdis",
 		.password = "Krishna@2505@2505"
-	});
+	};
 
-	if (!user) {
+	auto user = userService->createUser(valukkaWriteInfo);
+
+	if (user) {
+
+		Log::debug("UserName: {}", user->userName);
+		Log::debug("DisplayName: {}", user->displayName);
+		Log::debug("Mail: {}", user->mail);
+	}
+
+	else {
 		Log::error("Failed to create user!");
 	}
-	
-	Log::debug("UserName: {}", user->userName);
-	Log::debug("DisplayName: {}", user->displayName);
-	Log::debug("Mail: {}", user->mail);
-	
+
 
 	Log::debug("----------------------------------------------------");
 	Log::debug("Finding user: valukkathala");
-	userService->getUser("valukkathala");
+	auto searchUser = userService->getUser("valukkathala");
+
+	if (searchUser) {
+		Log::debug("UserName: {}", searchUser->userName);
+		Log::debug("DisplayName: {}", searchUser->displayName);
+		Log::debug("Mail: {}", searchUser->mail);
+	}
+	
+	else {
+		Log::error("Failed to create user!");
+	}
+
+	userService->deleteUser("valukkathala");
 
 }
