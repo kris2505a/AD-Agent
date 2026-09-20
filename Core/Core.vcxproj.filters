@@ -45,6 +45,9 @@
     <ClInclude Include="src\private\com_variant.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\public\json.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\private\win_directory_service.cpp">

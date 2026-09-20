@@ -1,0 +1,5 @@
+{
+  "ADConnURL": "LDAP://DC=server,DC=local",
+  "URL": "0.0.0.0",
+  "port":  8080
+}

@@ -2,6 +2,7 @@
 #include "public/log.h"
 #include "com_string.h"
 
+
 auto IUserService::create(IDirectoryService& ds) -> std::unique_ptr<IUserService> {
 	auto& refDirService = ds.as<WinDirectoryService>();
 	return std::make_unique<WinUserService>(refDirService);
@@ -10,6 +11,8 @@ auto IUserService::create(IDirectoryService& ds) -> std::unique_ptr<IUserService
 
 WinUserService::WinUserService(WinDirectoryService& ds)
 	: pDirectoryService(ds) {
+
+	Log::info("Creating UserService");
 
 	Log::info("Getting Directory Query interface");
 	
@@ -34,6 +37,8 @@ WinUserService::WinUserService(WinDirectoryService& ds)
 }
 
 auto WinUserService::getUsers() -> std::vector <UserInfo> {
+
+	std::shared_lock lock(mMutex);
 
 	Log::info("Retrieving users!");
 
@@ -104,17 +109,17 @@ auto WinUserService::getUsers() -> std::vector <UserInfo> {
 			switch (attrib) {
 			case SearchAttribute::UserName:
 				info.userName = toNarrow(column.pADsValues[0].CaseIgnoreString);
-				Log::info("UserName: {}", info.userName);
+				Log::debug("UserName: {}", info.userName);
 				break;
 
 			case SearchAttribute::DisplayName:
 				info.displayName = toNarrow(column.pADsValues[0].CaseIgnoreString);
-				Log::info("DisplayName: {}", info.displayName);
+				Log::debug("DisplayName: {}", info.displayName);
 				break;
 
 			case SearchAttribute::Mail:
 				info.mail = toNarrow(column.pADsValues[0].CaseIgnoreString);
-				Log::info("Mail: {}", info.mail);
+				Log::debug("Mail: {}", info.mail);
 				break;
 			}
 
@@ -141,7 +146,9 @@ auto WinUserService::getUsers() -> std::vector <UserInfo> {
 }
 
 
-auto WinUserService::createUser(UserWriteInfo info) -> std::expected<UserInfo, UserError> {
+auto WinUserService::createUser(UserWriteInfo info) -> std::expected<UserInfo, Error> {
+
+	std::unique_lock lock(mMutex);
 
 	ComString relativeName (L"CN=" + toWide(info.userName) + L",CN=Users");
 
@@ -149,7 +156,7 @@ auto WinUserService::createUser(UserWriteInfo info) -> std::expected<UserInfo, U
 
 	if (!rawUser) {
 		Log::error("{}", rawUser.error());
-		return std::unexpected{ UserError::FailedToCreateUserObject };
+		return std::unexpected{ Error::FailedToCreateUserObject };
 	}
 	
 	Log::info("raw user created successfully");
@@ -160,7 +167,7 @@ auto WinUserService::createUser(UserWriteInfo info) -> std::expected<UserInfo, U
 
 	if (FAILED(hr)) {
 		Log::error("Failed to COM cast IDispatch into IADsUser: {}", getMessage(hr));
-		return std::unexpected{ UserError::OtherErrors };
+		return std::unexpected{ Error::OtherErrors };
 	}
 
 	auto res = setUserAttributes(user.Get(), info);
@@ -177,41 +184,50 @@ auto WinUserService::createUser(UserWriteInfo info) -> std::expected<UserInfo, U
 		Log::error("Failed to set password: {}", getMessage(hr));
 
 		if (HRESULT_FROM_WIN32(ERROR_PASSWORD_RESTRICTION) == hr) {
-			return std::unexpected{ UserError::PasswordPolicy };
+			return std::unexpected{ Error::PasswordPolicy };
 		}
 		
 		if (E_ACCESSDENIED == hr) {
-			return std::unexpected{ UserError::PermissionDenied };
+			return std::unexpected{ Error::PermissionDenied };
 		}
 
-		return std::unexpected{ UserError::FailedToSetPassword };
+		return std::unexpected{ Error::FailedToSetPassword };
 	}
 
 	hr = user->put_AccountDisabled(VARIANT_FALSE);
 
 	if (FAILED(hr)) {
 		Log::error("Failed to enable account: {}", getMessage(hr));
-		return std::unexpected{ UserError::FailedToEnableUser };
+		return std::unexpected{ Error::FailedToEnableUser };
 	}
 
 	hr = user->SetInfo();
+
+	if (HRESULT_FROM_WIN32(ERROR_OBJECT_ALREADY_EXISTS) == hr) {
+		Log::error("User already exists: {} => WIN32: {}", getMessage(hr));
+		return std::unexpected{ Error::AlreadyExists };
+	}
 
 	if (FAILED(hr)) {
 		Log::error(
 			"Failed to set attributes: {}",
 			getMessage(hr)
 		);
-		return std::unexpected{ UserError::FailedToSetAttribute };
+		return std::unexpected{ Error::FailedToSetAttribute };
 	}
 	return res;
-
 }
 
-auto WinUserService::getUser(std::string_view userName) -> std::expected<UserInfo, UserError> {
+auto WinUserService::getUser(std::string_view userName) -> std::expected<UserInfo, Error> {
+
+	std::shared_lock lock(mMutex);
+
+	Log::info("Retrieving user: {}", userName);
+
 	std::vector<SearchAttribute> searchAttributes{
-	SearchAttribute::UserName,
-	SearchAttribute::DisplayName,
-	SearchAttribute::Mail
+		SearchAttribute::UserName,
+		SearchAttribute::DisplayName,
+		SearchAttribute::Mail
 	};
 
 	std::vector<LPWSTR> rawAttributes;
@@ -241,20 +257,20 @@ auto WinUserService::getUser(std::string_view userName) -> std::expected<UserInf
 
 	if (FAILED(hr)) {
 		Log::error("Failed to retrive users: {}", getMessage(hr));
-		return std::unexpected{ UserError::UnknownError };
+		return std::unexpected{ Error::UnknownError };
 	}
 
 	hr = mDirectorySearch->GetFirstRow(handle);
 	if (S_ADS_NOMORE_ROWS == hr) {
-		Log::error("Failed to retrive user: {}", getMessage(hr));
+		Log::error("Failed to retrive user: User Not found => WIN32: {}", getMessage(hr));
 		mDirectorySearch->CloseSearchHandle(handle);
-		return std::unexpected{ UserError::NotFound };
+		return std::unexpected{ Error::NotFound };
 	}
 
 	if (FAILED(hr)) {
 		Log::error("Failed to retrive users: {}", getMessage(hr));
 		mDirectorySearch->CloseSearchHandle(handle);
-		return std::unexpected{ UserError::UnknownError };
+		return std::unexpected{ Error::UnknownError };
 	}
 	
 	UserInfo info;
@@ -302,12 +318,14 @@ auto WinUserService::getUser(std::string_view userName) -> std::expected<UserInf
 	return info;
 }
 
-auto WinUserService::modifyUser(UserWriteInfo info) -> std::expected<UserInfo, UserError> {
+auto WinUserService::modifyUser(UserWriteInfo info) -> std::expected<UserInfo, Error> {
+
+	std::unique_lock lock(mMutex);
 	
 	auto rawUser = pDirectoryService.getObject(ComString{ L"User" }, ComString{ L"CN=" + toWide(info.userName) + L",CN=Users"});
 	if (!rawUser) {
 		Log::error("{}", rawUser.error());
-		return std::unexpected{ UserError::FailedToRetrieveUserObject };
+		return std::unexpected{ Error::FailedToRetrieveUserObject };
 	}
 	Log::info("raw user retrieved successfully");
 
@@ -317,7 +335,7 @@ auto WinUserService::modifyUser(UserWriteInfo info) -> std::expected<UserInfo, U
 
 	if (FAILED(hr)) {
 		Log::error("Failed to COM cast IDispatch into IADsUser: {}", getMessage(hr));
-		return std::unexpected{ UserError::OtherErrors };
+		return std::unexpected{ Error::OtherErrors };
 	}
 
 	auto result = setUserAttributes(user.Get(), info);
@@ -325,12 +343,15 @@ auto WinUserService::modifyUser(UserWriteInfo info) -> std::expected<UserInfo, U
 	return result;
 }
 
-auto WinUserService::deleteUser(std::string_view userName) -> std::expected<void, UserError> {
+auto WinUserService::deleteUser(std::string_view userName) -> std::expected<void, Error> {
+
+	std::unique_lock lock(mMutex);
+
 	auto result = pDirectoryService.deleteObject(ComString{ L"User" }, ComString{ L"CN=" + toWide(userName) + L",CN=Users" });
 
 	if (!result) {
 		Log::error("Failed to delete user: {}", result.error());
-		return std::unexpected{ UserError::UnknownError };
+		return std::unexpected{ Error::UnknownError };
 	}
 
 	Log::info("Successfully deleted user: {}", userName);
@@ -338,46 +359,46 @@ auto WinUserService::deleteUser(std::string_view userName) -> std::expected<void
 }
 
 auto WinUserService::setUserAttributes(IADsUser* user, UserWriteInfo& info)
-	-> std::expected<UserInfo, UserError> {
+	-> std::expected<UserInfo, Error> {
 	Log::info("Setting sAMAccountName: {}", info.userName);
 
 	if (!user) {
 		Log::error("User passed is nullptr");
-		return std::unexpected{ UserError::UnknownError };
+		return std::unexpected{ Error::UnknownError };
 	}
 
 	if (!putUserData(user, SearchAttribute::UserName, ComVariant{ ComString{ toWide(info.userName) } })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
+		return std::unexpected{ Error::FailedToSetAttribute };
 	}
 
 	Log::info("Setting displayName: {} {}", info.firstName, info.lastName);
 	if (!putUserData(user, SearchAttribute::DisplayName, ComVariant{ ComString{ toWide(info.firstName) + L" " + toWide(info.lastName)} })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
+		return std::unexpected{ Error::FailedToSetAttribute };
 	}
 
 	Log::info("Setting mail: {}", info.mail);
 	if (!putUserData(user, SearchAttribute::Mail, ComVariant{ ComString{ toWide(info.mail) } })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
+		return std::unexpected{ Error::FailedToSetAttribute };
 	}
 
 	Log::info("Setting firstName: {}", info.firstName);
 	if (!putUserData(user, UserAttribute::FirstName, ComVariant{ ComString{ toWide(info.firstName) } })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
+		return std::unexpected{ Error::FailedToSetAttribute };
 	}
 
 	Log::info("Setting sn (lastName): {}", info.lastName);
 	if (!putUserData(user, UserAttribute::LastName, ComVariant{ ComString{ toWide(info.lastName) } })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
+		return std::unexpected{ Error::FailedToSetAttribute };
 	}
 
 	Log::info("Setting initials: {}", info.initials);
 	if (!putUserData(user, UserAttribute::Initial, ComVariant{ ComString{ toWide(info.initials) } })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
+		return std::unexpected{ Error::FailedToSetAttribute };
 	}
 
 	Log::info("Setting userPrincipalName (i wont display it. fuck off dude)");
 	if (!putUserData(user, SearchAttribute::UserPrincipalName, ComVariant{ ComString{toWide(info.userName) + L"@dafaq.isdis"} })) {
-		return std::unexpected{ UserError::FailedToSetAttribute };
+		return std::unexpected{ Error::FailedToSetAttribute };
 	}
 
 	HRESULT hr = user->SetInfo();
@@ -387,7 +408,7 @@ auto WinUserService::setUserAttributes(IADsUser* user, UserWriteInfo& info)
 			"Failed to set attributes: {}",
 			getMessage(hr)
 		);
-		return std::unexpected{ UserError::FailedToSetAttribute };
+		return std::unexpected{ Error::FailedToSetAttribute };
 	}
 
 	return UserInfo{
@@ -426,4 +447,5 @@ auto WinUserService::putUserData(IADsUser* user, SearchAttribute attribute, cons
 }
 
 WinUserService::~WinUserService() {
+	Log::info("Destroying UserService");
 }

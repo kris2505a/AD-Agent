@@ -15,6 +15,7 @@
     <ClInclude Include="src\private\com_variant.h" />
     <ClInclude Include="src\private\types.h" />
     <ClInclude Include="src\private\win_directory_service.h" />
+    <ClInclude Include="src\public\json.h" />
     <ClInclude Include="src\public\thread_context.h" />
     <ClInclude Include="src\public\core.h" />
     <ClInclude Include="src\public\directory_service.h" />

@@ -16,4 +16,12 @@ public:
 	auto as() -> T& {
 		return dynamic_cast<T&>(*this);
 	}
+
+	enum class Error {
+		UnknownError,
+		AlreadyExists,
+		NotFound
+	};
+
+
 };

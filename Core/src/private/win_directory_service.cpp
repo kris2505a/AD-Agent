@@ -9,6 +9,9 @@ auto IDirectoryService::create(std::string_view connectionString) -> std::unique
 }
 
 WinDirectoryService::WinDirectoryService(std::string_view connectionString) {
+
+	Log::info("Creating Directory Service");
+
 	auto connectionStringW = toWide(connectionString);
 	HRESULT hr;
 	
@@ -32,6 +35,7 @@ WinDirectoryService::WinDirectoryService(std::string_view connectionString) {
 }
 
 WinDirectoryService::~WinDirectoryService() {
+	Log::info("Destroying Directory Service");
 }
 
 
@@ -60,7 +64,7 @@ auto WinDirectoryService::createObject(const ComString& className, const ComStri
 	if (FAILED(hr)) {
 		return std::unexpected{ std::format("Failed to create raw object of class {} : {}", className.getStr(), getMessage(hr))};
 	}
-	
+
 	return rawObject;
 }
 
