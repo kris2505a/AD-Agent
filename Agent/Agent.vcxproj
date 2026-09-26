@@ -154,10 +154,15 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\agent.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\user_controller.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\agent.h" />
+    <ClInclude Include="src\config.h" />
     <ClInclude Include="src\http.h" />
+    <ClInclude Include="src\user_controller.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="settings.json" />
