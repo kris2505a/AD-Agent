@@ -3,7 +3,9 @@
 #include <format>
 #include <print>
 #include "core.h"
-
+#include <fstream>
+#include <mutex>
+#include <filesystem>
 
 class Log {
 public:
@@ -31,11 +33,29 @@ public:
 		logMessage("inf", logWithArgs);
 	}
 
-private:
-	inline static auto logMessage(std::string_view logType, std::string_view msg) -> void {
-		std::println("[{}] >> {}", logType, msg);
+	static AGENT_API auto start(const std::filesystem::path& path) -> bool {
+		sLogFile.open(path);
+
+		return sLogFile.is_open();
 	}
 
+	static AGENT_API auto end() -> void {
+		if (sLogFile.is_open()) {
+			sLogFile.close();
+		}
+	}
+
+private:
+	inline static auto logMessage(std::string_view logType, std::string_view msg) -> void {
+		std::lock_guard lock(sMutex);
+		if (sLogFile.is_open()) {
+			auto logString = std::format("[{}] => {}", logType, msg);
+			sLogFile << logString << "\n";
+		}
+	}
+
+	inline static std::ofstream sLogFile;
+	inline static std::mutex sMutex;
 };
 
 

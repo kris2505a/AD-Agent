@@ -11,7 +11,7 @@
 class Agent {
 public:
 	Agent();
-	~Agent() = default;
+	~Agent();
 	Agent(const Agent&) = delete;
 	Agent& operator=(const Agent&) = delete;
 

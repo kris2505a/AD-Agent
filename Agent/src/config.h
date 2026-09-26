@@ -8,6 +8,10 @@
 
 class Config {
 public:
+	inline static std::string connectionString{ "" };
+	inline static std::string url{ "" };
+	inline static int port{ 0 };
+
 	static auto load() {
 		auto configPath = getExecutableDirectory() / "settings.json";
 		std::ifstream config(configPath);
@@ -28,11 +32,6 @@ public:
 		port = settings.at("port");
 	}
 
-	inline static std::string connectionString{ "" };
-	inline static std::string url{ "" };
-	inline static int port{ 0 };
-
-private:
 	inline static std::filesystem::path getExecutableDirectory() {
 		wchar_t buffer[MAX_PATH];
 		DWORD length = GetModuleFileNameW(nullptr, buffer, MAX_PATH);
